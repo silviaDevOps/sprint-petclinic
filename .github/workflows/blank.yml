@@ -3,8 +3,8 @@ env:
   APP_REPO: "https://github.com/spring-projects/spring-petclinic.git"  # Public repository of the application
   IMAGE_NAME: "spring"  # Name of the Docker image
   GCR_REPO_REGION: "us-central1"  # Region of the GCR repository
-  GCP_PROJECT_ID: "myspring-383620"  # ID of the GCP project
-  GCR_REPO_NAME: "my-repository"  # Name of the GCR repository
+  GCP_PROJECT_ID: "terraform-project-silvia"  # ID of the GCP project
+  GCR_REPO_NAME: "spring-petclinic"  # Name of the GCR repository
 
 # Define the name and trigger for the pipeline
 name: Spring Petclinic Pipeline
