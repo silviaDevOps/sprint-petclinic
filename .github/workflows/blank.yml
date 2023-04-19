@@ -30,6 +30,7 @@ jobs:
         working-directory: docker
         run: |
           git clone ${{env.APP_REPO}}
+          
       - name: Cache SonarCloud packages  # Cache SonarCloud packages
         uses: actions/cache@v3
         with:
