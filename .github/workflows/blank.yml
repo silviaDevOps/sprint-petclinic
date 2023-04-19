@@ -1,36 +1,76 @@
-# This is a basic workflow to help you get started with Actions
+# Define environment variables
+env:
+  APP_REPO: "https://github.com/spring-projects/spring-petclinic.git"  # Public repository of the application
+  IMAGE_NAME: "spring"  # Name of the Docker image
+  GCR_REPO_REGION: "us-central1"  # Region of the GCR repository
+  GCP_PROJECT_ID: "terraform-project-silvia"  # ID of the GCP project
+  GCR_REPO_NAME: "spring-petclinic"  # Name of the GCR repository
 
-name: CI
-
-# Controls when the workflow will run
+# Define the name and trigger for the pipeline
+name: Spring Petclinic Pipeline
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - chart
+      - main
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# Define the build job
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    # Define the steps of the build job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v3
+      - name: Checkout Branch  # Check out the specified branch
+        uses: actions/checkout@v2
+        with:
+          ref: main  # Replace with the branch or tag you want to clone
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Clone public repo of the application  # Clone the public repository of the application
+        working-directory: docker
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          git clone ${{env.APP_REPO}}
+      - name: Cache SonarCloud packages  # Cache SonarCloud packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+          - name: Cache Maven packages  # Cache Maven packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: Build and analyze application code with Sonarcloud  # Build and analyze application code with SonarCloud
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}  # SONAR_TOKEN was generated on sonarcloud.io and it's stored in Actions' Secret
+        run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=team5-springpetclinic_springpetclinicteam5
+
+      - name: Build Image from Dockerfile  # Build the Docker image from Dockerfile
+        working-directory: docker
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }}:latest .
+      - name: Tag Image  # Tag the Docker image
+        run: |
+          docker image tag ${{ env.IMAGE_NAME }}:latest ${{ env.GCR_REPO_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCR_REPO_NAME }}/${{ env.IMAGE_NAME }}:latest
+      - name: Check if gcloud is installed  # Check if gcloud is installed
+        run: gcloud version
+
+      - name: Authenticate to Google account  # Authenticate to Google account
+        working-directory: docker
+        run: |
+          echo ${{ secrets.SERVICE_ACCOUNT_BASE64 }} | base64 -d > service-account.json
+          gcloud auth activate-service-account --key-file=service-account.json
+          gcloud config set project ${{ env.GCP_PROJECT_ID }}
+      - name: Authenticate to Artifact repository  # Authenticate to Artifact repository
+        run: |
+          gcloud auth configure-docker ${{ env.GCR_REPO_REGION }}-docker.pkg.dev
+    
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push ${{ env.GCR_REPO_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCR_REPO_NAME }}/${{ env.IMAGE_NAME }}:latest 
