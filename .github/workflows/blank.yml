@@ -3,8 +3,8 @@ env:
   APP_REPO: "https://github.com/spring-projects/spring-petclinic.git"  # Public repository of the application
   IMAGE_NAME: "spring"  # Name of the Docker image
   GCR_REPO_REGION: "us-central1"  # Region of the GCR repository
-  GCP_PROJECT_ID: "terraform-project-silvia"  # ID of the GCP project
-  GCR_REPO_NAME: "spring-petclinic"  # Name of the GCR repository
+  GCP_PROJECT_ID: "myspring-383620"  # ID of the GCP project
+  GCR_REPO_NAME: "my-repository"  # Name of the GCR repository
 
 # Define the name and trigger for the pipeline
 name: Spring Petclinic Pipeline
@@ -30,7 +30,7 @@ jobs:
         working-directory: docker
         run: |
           git clone ${{env.APP_REPO}}
-          
+
       - name: Cache SonarCloud packages  # Cache SonarCloud packages
         uses: actions/cache@v3
         with:
@@ -38,7 +38,7 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-          - name: Cache Maven packages  # Cache Maven packages
+      - name: Cache Maven packages  # Cache Maven packages
         uses: actions/cache@v3
         with:
           path: ~/.m2
@@ -55,9 +55,11 @@ jobs:
         working-directory: docker
         run: |
           docker build -t ${{ env.IMAGE_NAME }}:latest .
+
       - name: Tag Image  # Tag the Docker image
         run: |
           docker image tag ${{ env.IMAGE_NAME }}:latest ${{ env.GCR_REPO_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCR_REPO_NAME }}/${{ env.IMAGE_NAME }}:latest
+
       - name: Check if gcloud is installed  # Check if gcloud is installed
         run: gcloud version
 
@@ -67,6 +69,7 @@ jobs:
           echo ${{ secrets.SERVICE_ACCOUNT_BASE64 }} | base64 -d > service-account.json
           gcloud auth activate-service-account --key-file=service-account.json
           gcloud config set project ${{ env.GCP_PROJECT_ID }}
+
       - name: Authenticate to Artifact repository  # Authenticate to Artifact repository
         run: |
           gcloud auth configure-docker ${{ env.GCR_REPO_REGION }}-docker.pkg.dev
@@ -74,4 +77,5 @@ jobs:
 
       - name: Push Docker image to Artifact Registry
         run: |
-          docker push ${{ env.GCR_REPO_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCR_REPO_NAME }}/${{ env.IMAGE_NAME }}:latest 
+          docker push ${{ env.GCR_REPO_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GCR_REPO_NAME }}/${{ env.IMAGE_NAME }}:latest        
+   
